@@ -648,6 +648,15 @@ select option { background: var(--surface2); }
       <div class="card-head"><span class="card-title">🔌 Connection</span></div>
       <div class="card-body">
         <div class="field">
+          <label>HTTP Method</label>
+          <select id="cfgMethod">
+          <option value="POST" selected>POST</option>
+          <option value="PUT">PUT</option>
+          <option value="GET">GET</option>
+          <option value="PATCH">PATCH</option>
+          </select>
+        </div>
+        <div class="field">
           <label>Endpoint URL</label>
           <input type="url" id="cfgEndpoint" placeholder="https://secure.future.aria.com/api/ws/api_ws_class_dispatcher.php">
         </div>
@@ -1671,7 +1680,7 @@ function refreshPreview() {
     const payload = buildPayload(rows[0]);
     const apiName = document.getElementById('cfgApiName').value.trim();
     const endpoint = document.getElementById('cfgEndpoint').value.trim();
-    const full = { rest_call: apiName, ...payload };
+    const full = apiName ? { rest_call: apiName, ...payload } : { ...payload };
     document.getElementById('payPre').textContent = JSON.stringify(maskPayload(full),null,2)
       + '\n\n// Endpoint: '+endpoint;
   } catch(e) {
@@ -1711,6 +1720,7 @@ function validateRow(row, rowIndex, idCols) {
 // ═══════════════════════════════════════════════════════════════
 async function startRun(forceDry) {
   if (S.running) return;
+  const targetMethod = document.getElementById('cfgMethod').value;
   const endpoint = document.getElementById('cfgEndpoint').value.trim();
   const apiName  = document.getElementById('cfgApiName').value.trim();
   const dry      = forceDry === true;
@@ -1751,7 +1761,7 @@ async function startRun(forceDry) {
       const tmr = setTimeout(()=>ctrl.abort(), 8000);
       const pr = await fetch(PROXY_URL, {
         method:'POST',
-        headers:{'Content-Type':'application/json','x-target-url':endpoint,...(Object.keys(customHeaders).length ? {'x-custom-headers': JSON.stringify(customHeaders)} : {})
+        headers:{'Content-Type':'application/json','x-target-url':endpoint,'x-target-method': targetMethod,...(Object.keys(customHeaders).length ? {'x-custom-headers': JSON.stringify(customHeaders)} : {})
         },
         body: JSON.stringify({rest_call:'__ping__'}),
         signal: ctrl.signal
@@ -1774,7 +1784,7 @@ async function startRun(forceDry) {
     log('DBG','Batch '+Math.ceil((i+1)/batch)+' — rows '+(i+1)+'–'+Math.min(i+batch,total));
 
     const batchRes = await concPool(slice, concurr, (row,bi) =>
-      execRow(row, i+bi+2, apiName, endpoint, retries, timeout, dry, idCols, customHeaders)
+      execRow(row, i+bi+2, apiName, targetMethod, endpoint, retries, timeout, dry, idCols, customHeaders)
     );
 
     for (const r of batchRes) {
@@ -1842,7 +1852,7 @@ async function concPool(items, limit, fn) {
   return res;
 }
 
-async function execRow(row, rowIndex, apiName, endpoint, maxRetries, timeout, dry, idCols, customHeaders) {
+async function execRow(row, rowIndex, apiName, targetMethod, endpoint, maxRetries, timeout, dry, idCols, customHeaders) {
   const t0=Date.now();
   const idVal = idCols.length
     ? idCols.map(c=>row[c]??'').filter(Boolean).join(' | ') || 'row-'+rowIndex
@@ -1876,7 +1886,7 @@ async function execRow(row, rowIndex, apiName, endpoint, maxRetries, timeout, dr
       const tmr=setTimeout(()=>ctrl.abort(),timeout);
       const res=await fetch(PROXY_URL,{
         method:'POST',
-        headers:{'Content-Type':'application/json','x-target-url':endpoint, ...(Object.keys(customHeaders).length ? {'x-custom-headers': JSON.stringify(customHeaders)} : {})
+        headers:{'Content-Type':'application/json','x-target-url':endpoint,'x-target-method': targetMethod,...(Object.keys(customHeaders).length ? {'x-custom-headers': JSON.stringify(customHeaders)} : {})
         },
         body:JSON.stringify(body),
         signal:ctrl.signal
@@ -2033,6 +2043,7 @@ function dlJson() {
 // ═══════════════════════════════════════════════════════════════
 function gatherCfg() {
   return {
+    method: document.getElementById('cfgMethod').value,
     endpoint: document.getElementById('cfgEndpoint').value,
     apiName:  document.getElementById('cfgApiName').value,
     batch:    document.getElementById('cfgBatch').value,
@@ -2050,6 +2061,7 @@ function gatherCfg() {
 
 function applyCfg(cfg) {
   if (!cfg) return;
+  document.getElementById('cfgMethod').value = cfg.method || 'POST';
   document.getElementById('cfgEndpoint').value   = cfg.endpoint||'';
   document.getElementById('cfgApiName').value    = cfg.apiName||'';
   document.getElementById('cfgBatch').value      = cfg.batch||10;

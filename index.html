@@ -1408,9 +1408,8 @@ function setVal(v, val) {
 
 function checkReady() {
   const hasFile = S.sheet && (S.sheets[S.sheet]||[]).length>0;
-  const hasApi  = document.getElementById('cfgApiName').value.trim();
   const hasJson = document.getElementById('jed').value.trim();
-  const ready = !!(hasFile && hasApi && hasJson);
+  const ready = !!(hasFile && hasJson);
   document.getElementById('runBtn').disabled = !ready;
   document.getElementById('dryRunBtn').disabled = !ready;
 }
@@ -1725,7 +1724,6 @@ async function startRun(forceDry) {
   const customHeaders = getCustomHeaders();
 
   if (!endpoint) { toast('Enter endpoint URL','error'); goPage(0); return; }
-  if (!apiName)  { toast('Enter API name','error'); goPage(0); return; }
   const rows = S.sheets[S.sheet]||[];
   if (!rows.length) { toast('No data rows','error'); return; }
 
@@ -1742,7 +1740,7 @@ async function startRun(forceDry) {
   S.logN=0; document.getElementById('logBdg').textContent='0';
 
   log('INFO','Starting — '+rows.length+' rows · batch '+batch+' · concurrency '+concurr+(dry?' [DRY RUN]':''));
-  log('INFO','API: '+apiName+' | Identifiers: '+(idCols.join(', ')||'none'));
+  log('INFO','API: '+(apiName||'(none)')+' | Identifiers: '+(idCols.join(', ')||'none'));
   if (dry) log('INFO','🔍 Dry Run: endpoint ping + field validation only — no records created');
   refreshPreview();
 
@@ -1864,7 +1862,7 @@ async function execRow(row, rowIndex, apiName, endpoint, maxRetries, timeout, dr
     return mk(rowIndex,idVal,'VALIDATION_ERROR',errMsg,null,null,payload,0,Date.now()-t0);
   }
 
-  const body={rest_call:apiName,...payload};
+  const body = apiName ? {rest_call:apiName, ...payload} : {...payload};
 
   if (dry) {
     log('DBG','Row '+rowIndex+' ['+idVal+'] — dry run ✓ (validation passed)');
